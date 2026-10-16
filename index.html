@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#4a154b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>음성 통역기</title>
+<style>
+:root{
+  --primary:#4a154b; --press:#611f69; --cream:#f4ede4; --lav:#f9f0ff;
+  --ink:#1d1d1d; --mute:#767676; --hair:#e6e6e6;
+  --err:#cc4117; --ok:#007a5a; --blue:#1264a3;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --bar:92px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  background:var(--cream); color:var(--ink);
+  font-size:16px; line-height:1.5;
+  display:flex; flex-direction:column;
+  height:100dvh; overflow:hidden;
+}
+
+/* ===== 상단 바 ===== */
+header{
+  background:var(--primary); color:#fff; flex:none;
+  padding:calc(var(--safe-t) + 10px) 14px 10px;
+}
+.hrow{display:flex;align-items:center;gap:8px}
+.title{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.hrow .sp{flex:1}
+.iconbtn{
+  background:rgba(255,255,255,.16);border:none;color:#fff;
+  width:34px;height:34px;border-radius:50%;font-size:15px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer
+}
+.chips{display:flex;gap:6px;margin-top:8px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  font-size:11px;font-weight:700;letter-spacing:.2px;white-space:nowrap;
+  padding:4px 10px;border-radius:90px;background:rgba(255,255,255,.18);color:#fff
+}
+.chip.ok{background:#1f7a5e}
+.chip.warn{background:#c2451b}
+.chip.live{animation:bl 1.1s infinite}
+@keyframes bl{50%{opacity:.45}}
+
+/* ===== 설정 시트 ===== */
+#sheet{
+  position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);
+  display:none;align-items:flex-end
+}
+#sheet.open{display:flex}
+.sheetbody{
+  background:#fff;width:100%;max-height:82vh;overflow-y:auto;
+  border-radius:20px 20px 0 0;padding:18px 18px calc(18px + var(--safe-b));
+  -webkit-overflow-scrolling:touch
+}
+.grab{width:40px;height:4px;background:#d8d8d8;border-radius:90px;margin:0 auto 14px}
+.sh{font-size:12px;font-weight:700;letter-spacing:.8px;color:var(--primary);
+  margin:16px 0 8px;text-transform:uppercase}
+.sh:first-of-type{margin-top:0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 0;border-bottom:1px solid var(--hair);font-size:15px}
+.row:last-child{border-bottom:none}
+.row label{color:#333;flex:1}
+select{
+  font-family:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--hair);
+  border-radius:8px;background:#fff;max-width:62%
+}
+input[type=range]{width:130px;accent-color:var(--blue)}
+.val{font-variant-numeric:tabular-nums;font-weight:700;min-width:26px;text-align:right}
+/* 토글 */
+.sw{position:relative;width:48px;height:28px;flex:none}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw i{position:absolute;inset:0;background:#ccc;border-radius:90px;transition:.2s}
+.sw i::after{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;
+  background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked + i{background:var(--primary)}
+.sw input:checked + i::after{transform:translateX(20px)}
+
+/* ===== 본문 ===== */
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:12px 12px calc(var(--bar) + var(--safe-b) + 12px)}
+.tabs{display:flex;gap:6px;background:#e9e0d4;padding:4px;border-radius:90px;margin-bottom:12px}
+.tab{flex:1;text-align:center;padding:9px 0;border-radius:90px;font-size:14px;
+  font-weight:700;color:#6b5f55;cursor:pointer;transition:.15s}
+.tab.on{background:#fff;color:var(--primary);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+.pane{display:none}
+.pane.on{display:block}
+.pane.both{display:block}
+
+.bubble{
+  background:#fff;border-radius:14px;padding:13px 15px;margin-bottom:9px;
+  box-shadow:0 1px 3px rgba(0,0,0,.07);font-size:16px;line-height:1.65;
+  animation:in .18s ease
+}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.bubble.en{background:#eef4fb;border-left:3px solid var(--blue)}
+.bubble .lb{font-size:10px;font-weight:700;letter-spacing:.9px;color:var(--mute);
+  display:block;margin-bottom:4px}
+.bubble.en .lb{color:var(--blue)}
+.bubble .play{
+  float:right;background:var(--blue);color:#fff;border:none;border-radius:90px;
+  width:30px;height:30px;font-size:13px;margin-left:8px;cursor:pointer
+}
+.bubble.fail{background:#fdece8;border-left-color:var(--err)}
+.pair{margin-bottom:12px}
+.pair .bubble{margin-bottom:5px}
+
+#itm{
+  font-style:italic;color:var(--mute);font-size:15px;padding:10px 15px;
+  background:rgba(255,255,255,.6);border-radius:14px;min-height:0;margin-bottom:9px
+}
+#itm:empty{display:none}
+.empty{text-align:center;color:#9b8f85;font-size:14px;padding:48px 20px;line-height:1.9}
+.empty b{display:block;font-size:40px;margin-bottom:10px}
+
+/* ===== 하단 조작부 ===== */
+.dock{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(255,255,255,.96);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hair);
+  padding:10px 14px calc(10px + var(--safe-b));
+  display:flex;align-items:center;gap:12px
+}
+.mic{
+  flex:none;width:64px;height:64px;border-radius:50%;border:none;
+  background:var(--primary);color:#fff;font-size:24px;cursor:pointer;
+  box-shadow:0 4px 14px rgba(74,21,75,.35);transition:.15s;
+  display:flex;align-items:center;justify-content:center
+}
+.mic:active{transform:scale(.94)}
+.mic.rec{background:var(--err);box-shadow:0 0 0 0 rgba(204,65,23,.5);animation:rp 1.5s infinite}
+@keyframes rp{70%{box-shadow:0 0 0 16px rgba(204,65,23,0)}100%{box-shadow:0 0 0 0 rgba(204,65,23,0)}}
+.dinfo{flex:1;min-width:0}
+.dinfo .s{font-size:14px;font-weight:700;color:var(--ink)}
+.dinfo .m{font-size:12px;color:var(--mute);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lvbar{height:5px;background:var(--hair);border-radius:90px;margin-top:6px;overflow:hidden}
+.lvbar i{display:block;height:100%;width:0%;background:var(--primary);transition:width .08s}
+.dbtns{display:flex;flex-direction:column;gap:6px;flex:none}
+.mini{
+  background:var(--lav);color:var(--primary);border:none;border-radius:90px;
+  padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap
+}
+.mini.blue{background:#e8f0f9;color:var(--blue)}
+
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--bar) + var(--safe-b) + 18px);z-index:70;
+  background:rgba(29,29,29,.93);color:#fff;font-size:13px;
+  padding:10px 18px;border-radius:90px;opacity:0;transition:.25s;pointer-events:none;
+  max-width:86vw;text-align:center
+}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <span class="title">음성 통역기</span>
+    <span class="sp"></span>
+    <button class="iconbtn" id="btnSheet" aria-label="설정">⚙</button>
+    <button class="iconbtn" id="btnMenu" aria-label="더보기">⋯</button>
+  </div>
+  <div class="chips">
+    <span class="chip" id="cLang">KO → EN</span>
+    <span class="chip" id="cTr">번역 확인중</span>
+    <span class="chip" id="cSpk">음성 대기</span>
+    <span class="chip" id="cCnt">0 문장</span>
+  </div>
+</header>
+
+<main id="main">
+  <div class="tabs">
+    <div class="tab on" data-v="both">양쪽</div>
+    <div class="tab" data-v="src">원문</div>
+    <div class="tab" data-v="en">영어</div>
+  </div>
+  <div id="itm"></div>
+  <div id="list">
+    <div class="empty" id="empty">
+      <b>🎙</b>
+      아래 마이크 버튼을 눌러 말하세요.<br>
+      인식 → 영어 번역 → 음성 낭독이<br>자동으로 이어집니다.
+    </div>
+  </div>
+</main>
+
+<div class="dock">
+  <button class="mic" id="mic" aria-label="녹음">🎙</button>
+  <div class="dinfo">
+    <div class="s" id="st">대기 중</div>
+    <div class="m" id="sub">탭하여 시작 · 이어폰 권장</div>
+    <div class="lvbar"><i id="lv"></i></div>
+  </div>
+  <div class="dbtns">
+    <button class="mini blue" id="bAll">▶ 전체</button>
+    <button class="mini" id="bStop">■ 정지</button>
+  </div>
+</div>
+
+<div id="sheet">
+  <div class="sheetbody" id="sb">
+    <div class="grab"></div>
+
+    <div class="sh">언어</div>
+    <div class="row"><label>입력 언어</label>
+      <select id="lang">
+        <option value="ko-KR" selected>한국어</option>
+        <option value="ja-JP">日本語</option>
+        <option value="zh-CN">中文</option>
+        <option value="es-ES">Español</option>
+        <option value="en-US">English</option>
+      </select></div>
+
+    <div class="sh">번역</div>
+    <div class="row"><label>실시간 번역</label>
+      <span class="sw"><input type="checkbox" id="trOn" checked><i></i></span></div>
+    <div class="row"><label>번역 엔진</label>
+      <select id="engine">
+        <option value="builtin" selected>내장(온디바이스)</option>
+        <option value="remote">네트워크</option>
+      </select></div>
+
+    <div class="sh">음성 출력</div>
+    <div class="row"><label>번역 즉시 읽기</label>
+      <span class="sw"><input type="checkbox" id="ttsAuto" checked><i></i></span></div>
+    <div class="row"><label>목소리</label>
+      <select id="voice"><option>불러오는 중…</option></select></div>
+    <div class="row"><label>속도</label>
+      <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1"><span class="val" id="rateV">1.0</span></div>
+    <div class="row"><label>음높이</label>
+      <input type="range" id="pitch" min="0" max="2" step="0.1" value="1"><span class="val" id="pitchV">1.0</span></div>
+    <div class="row"><label>볼륨</label>
+      <input type="range" id="vol" min="0" max="1" step="0.1" value="1"><span class="val" id="volV">1.0</span></div>
+    <div class="row"><label>목소리 테스트</label>
+      <button class="mini blue" id="bTest">재생</button></div>
+
+    <div class="sh">인식</div>
+    <div class="row"><label>자동 재시작</label>
+      <span class="sw"><input type="checkbox" id="auto" checked><i></i></span></div>
+    <div class="row"><label>화면 꺼짐 방지</label>
+      <span class="sw"><input type="checkbox" id="wake" checked><i></i></span></div>
+    <div class="row"><label>낭독 중 마이크 끄기</label>
+      <span class="sw"><input type="checkbox" id="duck" checked><i></i></span></div>
+
+    <div class="sh">기록</div>
+    <div class="row"><label>클립보드 복사</label><button class="mini" id="bCopy">복사</button></div>
+    <div class="row"><label>텍스트 파일 저장</label><button class="mini" id="bSave">저장</button></div>
+    <div class="row"><label>전체 재번역</label><button class="mini" id="bRetr">실행</button></div>
+    <div class="row"><label style="color:var(--err)">전체 지우기</label>
+      <button class="mini" id="bClear" style="background:#fdece8;color:var(--err)">삭제</button></div>
+
+    <div class="row" style="padding-top:16px">
+      <button class="mini" id="bClose" style="width:100%;padding:13px;font-size:15px;
+        background:var(--primary);color:#fff">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const synth=window.speechSynthesis;
+const $=id=>document.getElementById(id);
+const list=$("list"), itm=$("itm"), mic=$("mic"), lv=$("lv");
+
+let rec=null, running=false, manualStop=false, wantRun=false;
+let audioCtx=null, stream=null, rafId=null, wakeLock=null;
+let translator=null, trReady=false, voices=[], lastEn="";
+let pairs=[];                      // {src, en, node}
+const tq=[]; let tWorking=false;   // 번역 큐
+const sq=[]; let speaking=false, unlocked=false;
+
+/* ---------- 토스트 ---------- */
+let tt=null;
+function toast(m,ms){ const t=$("toast"); t.textContent=m; t.classList.add("on");
+  clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("on"), ms||2200); }
+
+/* ---------- 지원 점검 ---------- */
+if(!SR){
+  toast("이 브라우저는 음성 인식을 지원하지 않습니다. Android는 Chrome, iPhone은 Safari를 사용하세요.", 9000);
+  mic.disabled=true; mic.style.opacity=.4;
+}
+if(!window.isSecureContext){
+  toast("https 주소에서 열어야 마이크가 동작합니다.", 9000);
+}
+
+/* ================= 화면 꺼짐 방지 ================= */
+async function reqWake(){
+  if(!$("wake").checked || !("wakeLock" in navigator)) return;
+  try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){}
+}
+function relWake(){ if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock=null; } }
+document.addEventListener("visibilitychange", async ()=>{
+  if(document.visibilityState==="visible"){
+    if(wantRun){ reqWake(); if(!running) start(); }   // 복귀 시 자동 복구
+  }else{
+    relWake();
+  }
+});
+
+/* ================= TTS ================= */
+function loadVoices(){
+  if(!synth) return;
+  voices=synth.getVoices().filter(v=>/^en/i.test(v.lang));
+  const sel=$("voice");
+  if(!voices.length){ sel.innerHTML="<option value='-1'>영어 음성 없음</option>"; return; }
+  const pref=["Samantha","Karen","Daniel","Zira","Aria","Google US English","Alex"];
+  voices.sort((a,b)=>{
+    const ia=pref.findIndex(p=>a.name.includes(p)), ib=pref.findIndex(p=>b.name.includes(p));
+    return (ia<0?99:ia)-(ib<0?99:ib);
+  });
+  sel.innerHTML=voices.map((v,i)=>`<option value="${i}">${v.name}</option>`).join("");
+  chip("cSpk",`음성 ${voices.length}종`);
+}
+if(synth){ loadVoices(); synth.onvoiceschanged=loadVoices; }
+
+function unlock(){
+  if(unlocked||!synth) return;
+  const u=new SpeechSynthesisUtterance(" "); u.volume=0; synth.speak(u);
+  unlocked=true;
+}
+
+function speak(text){
+  if(!synth||!text.trim()) return;
+  sq.push(text.trim()); pumpSpeak();
+}
+function pumpSpeak(){
+  if(!synth||speaking||!sq.length) return;
+  const text=sq.shift();
+  const u=new SpeechSynthesisUtterance(text);
+  const vi=parseInt($("voice").value,10);
+  if(voices[vi]){ u.voice=voices[vi]; u.lang=voices[vi].lang; } else u.lang="en-US";
+  u.rate=+$("rate").value; u.pitch=+$("pitch").value; u.volume=+$("vol").value;
+
+  u.onstart=()=>{
+    speaking=true; chip("cSpk","낭독 중","live");
+    if($("duck").checked && running){ manualStop=true; try{rec&&rec.stop();}catch(e){} }
+  };
+  u.onend=()=>{
+    speaking=false; chip("cSpk", sq.length?`대기 ${sq.length}`:"낭독 완료");
+    if(sq.length){ pumpSpeak(); return; }
+    if($("duck").checked && wantRun && !running){ setTimeout(start,220); }  // 낭독 끝나면 마이크 복귀
+  };
+  u.onerror=()=>{ speaking=false; chip("cSpk","낭독 오류","warn"); pumpSpeak(); };
+  synth.speak(u);
+}
+function stopSpeak(){ sq.length=0; if(synth) synth.cancel(); speaking=false; chip("cSpk","낭독 정지"); }
+
+/* ================= 번역 ================= */
+const srcLang=()=>$("lang").value.split("-")[0];
+
+async function initTr(){
+  translator=null; trReady=false;
+  const s=srcLang();
+  chip("cLang", s.toUpperCase()+" → EN");
+  if(s==="en"){ chip("cTr","번역 생략"); return; }
+  if($("engine").value==="remote"){ trReady=true; chip("cTr","네트워크 번역","warn"); return; }
+  if(!("Translator" in self)){
+    $("engine").value="remote"; trReady=true;
+    chip("cTr","네트워크 번역","warn"); return;
+  }
+  try{
+    chip("cTr","언어팩 확인");
+    const av=await Translator.availability({sourceLanguage:s,targetLanguage:"en"});
+    if(av==="unavailable"){ $("engine").value="remote"; trReady=true; chip("cTr","네트워크 번역","warn"); return; }
+    translator=await Translator.create({
+      sourceLanguage:s,targetLanguage:"en",
+      monitor(m){ m.addEventListener("downloadprogress",e=>chip("cTr",`다운로드 ${Math.floor(e.loaded*100)}%`)); }
+    });
+    trReady=true; chip("cTr","온디바이스 번역","ok");
+  }catch(e){
+    $("engine").value="remote"; trReady=true; chip("cTr","네트워크 번역","warn");
+  }
+}
+async function doTr(t){
+  if($("engine").value==="builtin"&&translator) return await translator.translate(t);
+  const r=await fetch("https://api.mymemory.translated.net/get?q="+encodeURIComponent(t)
+    +"&langpair="+srcLang()+"|en");
+  if(!r.ok) throw 0;
+  const j=await r.json(); const o=j?.responseData?.translatedText;
+  if(!o) throw 0; return o;
+}
+
+/* ================= 화면 출력 ================= */
+function addPair(src){
+  $("empty")?.remove();
+  const wrap=document.createElement("div"); wrap.className="pair";
+  const a=document.createElement("div"); a.className="bubble";
+  a.innerHTML=`<span class="lb">${srcLang().toUpperCase()}</span>`;
+  a.appendChild(document.createTextNode(src));
+  const b=document.createElement("div"); b.className="bubble en";
+  b.innerHTML=`<span class="lb">EN</span><span class="t">번역 중…</span>`;
+  wrap.appendChild(a); wrap.appendChild(b);
+  list.appendChild(wrap);
+  scroll();
+  const p={src,en:"",node:b}; pairs.push(p);
+  chip("cCnt", pairs.length+" 문장");
+  applyView();
+  return p;
+}
+function fillEn(p,text,fail){
+  p.en=text;
+  p.node.className = "bubble en"+(fail?" fail":"");
+  p.node.innerHTML=`<span class="lb">EN</span>`;
+  if(!fail){
+    const btn=document.createElement("button");
+    btn.className="play"; btn.textContent="▶";
+    btn.onclick=()=>{ unlock(); stopSpeak(); speak(text); };
+    p.node.appendChild(btn);
+  }
+  p.node.appendChild(document.createTextNode(text));
+  scroll();
+}
+function scroll(){ const m=$("main"); m.scrollTop=m.scrollHeight; }
+
+function enqueue(src){
+  if(!$("trOn").checked) return;
+  const p=addPair(src);
+  if(srcLang()==="en"){
+    fillEn(p,src); lastEn=src;
+    if($("ttsAuto").checked) speak(src);
+    return;
+  }
+  tq.push(p); pumpTr();
+}
+async function pumpTr(){
+  if(tWorking||!tq.length) return;
+  tWorking=true;
+  while(tq.length){
+    const p=tq.shift();
+    try{
+      if(!trReady) await initTr();
+      const out=await doTr(p.src);
+      fillEn(p,out); lastEn=out;
+      if($("ttsAuto").checked) speak(out);
+    }catch(e){ fillEn(p,"번역 실패 — 네트워크 또는 엔진을 확인하세요",true); }
+  }
+  tWorking=false;
+}
+
+/* ================= 인식 ================= */
+function build(){
+  const r=new SR();
+  r.lang=$("lang").value;
+  r.continuous=true;          // 모바일은 무시되는 경우가 많아 onend 재시작으로 보완
+  r.interimResults=true;
+  r.maxAlternatives=1;
+
+  r.onstart=()=>{ running=true; ui(true); st("듣는 중…","말씀하세요"); };
+  r.onresult=ev=>{
+    let f="",i2="";
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      const t=ev.results[i][0].transcript;
+      ev.results[i].isFinal ? f+=t : i2+=t;
+    }
+    if(f.trim()){ itm.textContent=""; enqueue(f.trim()); }
+    else itm.textContent=i2;
+  };
+  r.onerror=ev=>{
+    if(ev.error==="no-speech"||ev.error==="aborted") return;
+    const m={
+      "not-allowed":"마이크 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요.",
+      "service-not-allowed":"인식 서비스가 차단되었습니다. https로 접속하세요.",
+      "audio-capture":"마이크를 찾을 수 없습니다.",
+      "network":"네트워크 오류로 인식이 중단되었습니다."
+    };
+    toast(m[ev.error]||("오류: "+ev.error), 4000);
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){ wantRun=false; }
+  };
+  r.onend=()=>{
+    running=false; itm.textContent="";
+    if(wantRun && !speaking && $("auto").checked){ setTimeout(start,300); }
+    else if(!wantRun){ ui(false); st("대기 중","탭하여 시작"); stopMeter(); relWake(); }
+  };
+  return r;
+}
+function start(){
+  if(!SR) return;
+  unlock(); wantRun=true; manualStop=false;
+  rec=build();
+  try{ rec.start(); }catch(e){}
+  startMeter(); reqWake();
+}
+function stop(){
+  wantRun=false; manualStop=true;
+  try{ rec&&rec.stop(); }catch(e){}
+  ui(false); st("대기 중","탭하여 시작"); stopMeter(); relWake();
+}
+mic.onclick=()=>{ wantRun ? stop() : start(); };
+
+function ui(on){ mic.classList.toggle("rec",on); mic.textContent = on?"■":"🎙"; }
+function st(a,b){ $("st").textContent=a; $("sub").textContent=b; }
+function chip(id,txt,k){ const e=$(id); e.textContent=txt; e.className="chip"+(k?" "+k:""); }
+
+/* ================= 입력 레벨 ================= */
+async function startMeter(){
+  if(audioCtx) return;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") await audioCtx.resume();
+    const s=audioCtx.createMediaStreamSource(stream);
+    const an=audioCtx.createAnalyser(); an.fftSize=256; s.connect(an);
+    const buf=new Uint8Array(an.frequencyBinCount);
+    (function loop(){
+      an.getByteTimeDomainData(buf);
+      let q=0; for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128; q+=v*v;}
+      lv.style.width=Math.min(100,Math.sqrt(q/buf.length)*320).toFixed(0)+"%";
+      rafId=requestAnimationFrame(loop);
+    })();
+  }catch(e){}
+}
+function stopMeter(){
+  if(rafId) cancelAnimationFrame(rafId);
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  if(audioCtx) audioCtx.close().catch(()=>{});
+  audioCtx=null; stream=null; rafId=null; lv.style.width="0%";
+}
+
+/* ================= 탭 / 시트 ================= */
+let view="both";
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on"); view=t.dataset.v; applyView();
+  };
+});
+function applyView(){
+  document.querySelectorAll(".pair").forEach(p=>{
+    const[a,b]=p.children;
+    a.style.display = view==="en" ? "none":"block";
+    b.style.display = view==="src"? "none":"block";
+  });
+}
+const sheet=$("sheet");
+$("btnSheet").onclick=()=>sheet.classList.add("open");
+$("btnMenu").onclick=()=>sheet.classList.add("open");
+$("bClose").onclick=()=>sheet.classList.remove("open");
+sheet.onclick=e=>{ if(e.target===sheet) sheet.classList.remove("open"); };
+
+/* ================= 조작 ================= */
+$("bAll").onclick=()=>{
+  unlock(); stopSpeak();
+  const t=pairs.filter(p=>p.en&&!/^번역 실패/.test(p.en));
+  if(!t.length){ toast("읽을 영어 문장이 없습니다"); return; }
+  t.forEach(p=>speak(p.en));
+};
+$("bStop").onclick=stopSpeak;
+$("bTest").onclick=()=>{ unlock(); speak("This is a voice sample for the English output."); };
+["rate","pitch","vol"].forEach(id=>{
+  $(id).oninput=e=>$(id+"V").textContent=(+e.target.value).toFixed(1);
+});
+$("lang").onchange=async()=>{
+  await initTr();
+  if(wantRun){ stop(); setTimeout(start,350); }
+};
+$("engine").onchange=initTr;
+$("wake").onchange=()=>{ $("wake").checked ? reqWake() : relWake(); };
+
+$("bRetr").onclick=async()=>{
+  if(!pairs.length) return;
+  stopSpeak(); tq.length=0;
+  pairs.forEach(p=>{ p.node.innerHTML='<span class="lb">EN</span><span>번역 중…</span>';
+    p.node.className="bubble en"; tq.push(p); });
+  sheet.classList.remove("open"); pumpTr();
+};
+function plain(){
+  return pairs.map((p,i)=>`[${String(i+1).padStart(3,"0")}]\n  ${p.src}\n  EN : ${p.en}`).join("\n\n");
+}
+$("bCopy").onclick=async()=>{
+  if(!pairs.length){ toast("기록이 없습니다"); return; }
+  try{ await navigator.clipboard.writeText(plain()); toast("복사했습니다"); }
+  catch(e){ toast("복사 실패 — 길게 눌러 직접 선택하세요"); }
+};
+$("bSave").onclick=()=>{
+  if(!pairs.length){ toast("기록이 없습니다"); return; }
+  const b=new Blob(["\ufeff음성 기록 · 한영 대조\n"+"=".repeat(34)+"\n\n"+plain()],
+    {type:"text/plain;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(b);
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  a.download=`음성기록_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.txt`;
+  a.click(); URL.revokeObjectURL(a.href); toast("저장했습니다");
+};
+$("bClear").onclick=()=>{
+  if(!pairs.length) return;
+  if(!confirm("모든 기록을 지울까요?")) return;
+  stopSpeak(); pairs=[]; tq.length=0; list.innerHTML=
+    '<div class="empty" id="empty"><b>🎙</b>아래 마이크 버튼을 눌러 말하세요.<br>인식 → 영어 번역 → 음성 낭독이<br>자동으로 이어집니다.</div>';
+  chip("cCnt","0 문장"); sheet.classList.remove("open");
+};
+
+/* iOS 고무줄 스크롤 차단 (시트/본문 제외) */
+document.body.addEventListener("touchmove",e=>{
+  if(!e.target.closest("#main,#sb")) e.preventDefault();
+},{passive:false});
+
+window.addEventListener("beforeunload",()=>{ if(synth) synth.cancel(); relWake(); });
+
+initTr();
+})();
+</script>
+</body>
+</html>
